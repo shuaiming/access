@@ -19,40 +19,40 @@ type responseWriter struct {
 }
 
 // WriteHeader warp http.ResponseWriter.WriteHeader
-func (rw *responseWriter) WriteHeader(s int) {
-	if !rw.wroteHeader {
-		rw.wroteHeader = true
-		rw.status = s
+func (w *responseWriter) WriteHeader(s int) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		w.status = s
 	}
 
-	rw.ResponseWriter.WriteHeader(s)
+	w.ResponseWriter.WriteHeader(s)
 }
 
 // Write warp http.ResponseWriter.Write
-func (rw *responseWriter) Write(b []byte) (int, error) {
+func (w *responseWriter) Write(b []byte) (int, error) {
 
 	// look at http.ResponseWriter.Write() implementation
 	// 虽然 ResponseWriter.Write() 会保底设置 http.StatusOK，
 	// 但是只能调用内部的 ResponseWriter.WriteHeader？导致这里无法
 	// 拿到保底状态码 http.StatusOK，日志里会出现HTTP返回码为0的情况。
 	// 所以主动调用一下重写的 WriteHeader，修正之。
-	if !rw.wroteHeader {
-		rw.WriteHeader(http.StatusOK)
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
 	}
 
-	size, err := rw.ResponseWriter.Write(b)
-	rw.size += size
+	size, err := w.ResponseWriter.Write(b)
+	w.size += size
 	return size, err
 }
 
 // Size of http server written bytes
-func (rw *responseWriter) Size() int {
-	return rw.size
+func (w *responseWriter) Size() int {
+	return w.size
 }
 
 // Status return http server status code
-func (rw *responseWriter) Status() int {
-	return rw.status
+func (w *responseWriter) Status() int {
+	return w.status
 }
 
 // Access write access log with log.Logger
@@ -82,14 +82,14 @@ func New(optional ...string) *Access {
 
 // ServeHTTP implement pod.Handler
 func (a *Access) ServeHTTP(
-	rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	timeStart := time.Now()
 
-	newrw := &responseWriter{rw, false, 0, 0}
+	neww := &responseWriter{w, false, 0, 0}
 	httpMethod := r.Method
 	urlPath := r.URL.String()
 
-	next(newrw, r)
+	next(neww, r)
 
 	timeEnd := time.Now()
 	timeSpend := timeEnd.Sub(timeStart)
@@ -99,8 +99,8 @@ func (a *Access) ServeHTTP(
 		HTTPMethod: httpMethod,
 		URLPath:    urlPath,
 		TimeSpend:  timeSpend.Milliseconds(),
-		WriteSize:  newrw.Size(),
-		Status:     newrw.Status(),
+		WriteSize:  neww.Size(),
+		Status:     neww.Status(),
 	}
 
 	tmpl, err := template.New("access").Parse(a.format)
